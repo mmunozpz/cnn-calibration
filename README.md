@@ -132,7 +132,9 @@ p_i = exp(z_i/T) / Σ exp(z_j/T)
 
 ### Temperature Optimization
 
-![ECE vs Temperature](images/temp_scaling_ece.png)
+<p align="center">
+  <img src="images/temp_scaling_ece.png" width="400"/>
+</p>
 
 - **LeNet-5**: U-shaped curve bottoms at T=3.71 (severe initial overconfidence)
 - **Mini-LeNet**: Optimal near T=1.2 (already reasonably calibrated)
