@@ -4,7 +4,7 @@
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-ee4c2c.svg)](https://pytorch.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-**Authors:** María Muñoz Pérez, Isabel Carballo Rueda,MohammadErfan Jabbari
+**Authors:** María Muñoz Pérez, Isabel Carballo Rueda, MohammadErfan Jabbari
 
 ---
 
