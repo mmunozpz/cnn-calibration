@@ -5,8 +5,6 @@
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 **Authors:** María Muñoz Pérez, Isabel Carballo Rueda,MohammadErfan Jabbari
-**Course:** Deep Learning - CNN  
-**Date:** October 2025
 
 ---
 
