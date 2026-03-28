@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb_checkpoints/
+
+# PyTorch
+*.pth
+*.pt
+checkpoints/
+
+# Data
+data/cifar-10-batches-py/
+data/*.tar.gz
+
+# Compiled outputs
+out/
+*.zip

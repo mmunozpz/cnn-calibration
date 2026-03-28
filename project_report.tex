@@ -1,0 +1,235 @@
+\documentclass[10pt,twocolumn]{article}
+
+% Basic encoding and typography
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+
+% Page layout - reduced margins for more content
+\usepackage[margin=0.75in, top=0.6in]{geometry}
+\setlength{\columnsep}{0.25in}
+\setlength{\textfloatsep}{8pt plus 2pt minus 2pt}
+\setlength{\floatsep}{8pt plus 2pt minus 2pt}
+\setlength{\intextsep}{8pt plus 2pt minus 2pt}
+\setlength{\abovecaptionskip}{6pt}
+\setlength{\belowcaptionskip}{6pt}
+
+% Math, figures, tables
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{subcaption}
+\usepackage{enumitem}
+
+% Acronyms package
+\usepackage[acronym,nohypertypes={acronym}]{glossaries}
+\makeglossaries
+
+% Hyperref must be loaded after most packages
+\usepackage{hyperref}
+
+% Hyperlink formatting
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    citecolor=blue,
+    urlcolor=blue
+}
+
+% Header/footer styling
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{Project I: CNN Calibration}
+\rhead{Deep Learning Course}
+\cfoot{\thepage}
+\setlength{\headheight}{13pt}
+
+% Reduce spacing around title
+\usepackage{titling}
+\setlength{\droptitle}{-40pt}
+\pretitle{\begin{center}\Large\bfseries}
+\posttitle{\par\end{center}\vspace{-10pt}}
+\preauthor{\begin{center}\normalsize}
+\postauthor{\end{center}\vspace{-8pt}}
+\predate{\begin{center}\normalsize}
+\postdate{\end{center}\vspace{-15pt}}
+
+% Reduce spacing around section and subsection headers
+\usepackage{titlesec}
+% \titlespacing*{\section}{0pt}{6pt plus 2pt minus 2pt}{4pt plus 2pt minus 2pt}
+\titlespacing*{\section}{0pt}{2pt}{1pt}
+\titlespacing*{\subsection}{0pt}{1pt}{1pt}
+\titlespacing*{\subsubsection}{0pt}{1pt}{1pt}
+
+% Define acronyms
+\newacronym{cnn}{CNN}{Convolutional Neural Network}
+\newacronym{ece}{ECE}{Expected Calibration Error}
+\newacronym{nll}{NLL}{Negative Log-Likelihood}
+\newacronym{cifar}{CIFAR}{Canadian Institute for Advanced Research}
+\newacronym{vgg}{VGG}{Visual Geometry Group}
+% \newacronym{adam}{Adam}{Adaptive Moment Estimation}
+
+% Convenience macros for math notation
+\newcommand{\ece}{\ensuremath{\mathrm{ECE}}}
+\newcommand{\nll}{\ensuremath{\mathrm{NLL}}}
+
+% Compact title and abstract
+\title{Calibration of Convolutional Neural Networks}
+\author{María Muñoz Pérez, Isabel Carballo Rueda, MohammadErfan Jabbari \\ Deep Learning Course}
+\date{October 2025}
+
+\begin{document}
+
+\maketitle
+\thispagestyle{fancy}
+
+\section{Introduction}
+\label{sec:intro}
+
+Neural networks are being deployed in critical applications ranging from medical diagnosis to autonomous driving. However, despite achieving high accuracy, these models are often unreliable---producing overconfident predictions that do not reflect true likelihoods. This miscalibration poses risks in decision-making scenarios where confidence estimates matter.
+
+Calibration addresses this issue by ensuring a model's predicted probabilities align with empirical accuracy. Following the methodology of Guo et al.~\cite{pmlr-v70-guo17a}, we investigate calibration in \glspl{cnn} trained on binary classification using \gls{cifar}-10~\cite{krizhevsky2009learning} (birds vs. cats). We evaluate three metrics: test accuracy, \gls{ece}, and average confidence across five architectures: LeNet-5, Mini-LeNet, and three pre-trained models (MobileNet-V3-Small, ResNet-18, \gls{vgg}-16). Our experiments show that, when training from scratch on limited data, the higher-capacity LeNet-5 becomes far more miscalibrated than the compact Mini-LeNet, while temperature scaling restores LeNet-5's reliability without hurting accuracy; transfer-learned networks already start close to well calibrated.
+
+\section{Background}
+\label{sec:background}
+
+\subsection{Calibration Metrics}
+
+A perfectly calibrated classifier predicting 80\% confidence should be correct 80\% of the time. We measure calibration using \gls{ece}, which partitions predictions into $M$ bins by confidence level and computes the weighted average gap between accuracy and confidence:
+\begin{equation}
+\ece = \sum_{m=1}^{M} \frac{|B_m|}{n} \left|\text{acc}(B_m) - \text{conf}(B_m)\right|
+\end{equation}
+where $B_m$ is the set of samples in bin $m$, $n$ is the total number of samples, and $\text{acc}(B_m)$ and $\text{conf}(B_m)$ are the accuracy and average confidence in that bin. Lower \ece~indicates better calibration.
+
+\subsection{Temperature Scaling}
+
+Temperature scaling~\cite{platt1999probabilistic,pmlr-v70-guo17a} is a post-hoc calibration method that rescales model logits before computing probabilities without requiring retraining. Given logits $z_i$, the calibrated probability becomes:
+\begin{equation}
+p_i = \frac{\exp(z_i/T)}{\sum_j \exp(z_j/T)}
+\end{equation}
+where $T > 0$ is the temperature parameter. When $T>1$, predictions become less confident (softer); when $T<1$, more confident (sharper). The optimal $T$ is found by minimizing \gls{nll} on a validation set. Crucially, temperature scaling preserves the \textbf{rank order} of logits, hence the arg-max class, while re-scaling the probabilities, thus maintaining model accuracy.
+
+\section{Experimental Setup}
+\label{sec:setup}
+
+\subsection{Dataset}
+We use \gls{cifar}-10's~\cite{krizhevsky2009learning} bird (class 2) and cat (class 3) classes for binary classification. From CIFAR-10, we extract 10,000 training images and 2,000 test images (balanced across classes). The training set is split 80:20 into 8,000 training and 2,000 validation samples. Images are normalized to $[-1, 1]$ and labels remapped to binary (bird=0, cat=1).
+
+\subsection{Model Architectures}
+
+\textbf{LeNet-5 and Mini-LeNet:} We implement the standard LeNet-5 architecture~\cite{lecun1998gradient} with 61,326 parameters (two conv layers: 6, 16 filters; three FC layers) and a reduced Mini-LeNet variant with 4,048 parameters (93.4\% fewer) using 2 and 4 filters. With only 8,000 training samples, LeNet-5 proved oversized and showed severe overfitting, while Mini-LeNet better matched our limited dataset size. Comparative analysis of both models provides insight into capacity-calibration tradeoffs (see Section~\ref{sec:results}).
+
+\textbf{Pre-trained Models:} To investigate model scale effects on calibration, we evaluate three transfer-learned architectures with frozen features and fine-tuned binary classifiers, spanning multiple scales: \textbf{MobileNet-V3-Small}~\cite{howard2019searching} (1.5M params), \textbf{ResNet-18}~\cite{he2016deep} (11.2M params), and \textbf{VGG-16}~\cite{simonyan2014very} (134.3M params).
+
+\subsection{Training}
+LeNet variants trained for 20 epochs with Adam optimizer (lr=0.001). Pre-trained models fine-tuned for 80 epochs with learning rate scheduling. Temperature scaling optimized via grid search over $T \in [0.1, 5.0]$ on validation set for the \gls{nll} metric.
+
+\section{Results}
+\label{sec:results}
+
+\subsection{Training Performance}
+
+Table~\ref{tab:training_performance} reveals an interesting contrast between training from scratch versus transfer learning. Pre-trained models with only 1K--8K trainable parameters significantly outperform LeNet-5 (61K trainable parameters) in both accuracy and generalization. This apparent paradox—fewer trainable weights yet higher accuracy—shows that \textbf{representation quality} (features pre-trained on 1.2M ImageNet images) dominates \textbf{parameter quantity} when data are scarce.
+
+
+\begin{table*}[t]
+\vspace{-0.5em}
+\caption{Model Training Performance Summary}\vspace{-0.8em}
+\label{tab:training_performance}
+\centering
+\small
+\setlength{\tabcolsep}{5pt}
+\renewcommand{\arraystretch}{1.1}
+\begin{tabular}{lcccccccc}
+\toprule
+Model & Type & Total Params & Trainable & Train Acc (\%) & Val Acc (\%) & Gap (\%) & Test Acc (\%) & Conf Gap (\%) \\
+\midrule
+LeNet-5 & Scratch & 61.3K & 61.3K & 96.8 & 79.1 & 17.7 & 77.0 & 16.1 \\
+Mini-LeNet & Scratch & 4.0K & 4.0K & 79.5 & 75.2 & 4.3 & 77.5 & 1.5 \\
+MobileNet-V3 & Transfer & 1.5M & 2,050 & 68.0 & 67.5 & 0.5 & 66.8 & -0.3 \\
+ResNet-18 & Transfer & 11.2M & 1,026 & 79.4 & 78.7 & 0.8 & 77.8 & 1.0 \\
+VGG-16 & Transfer & 134.3M & 8,194 & 86.7 & 85.8 & 0.9 & 83.9 & 1.3 \\
+\bottomrule
+\end{tabular}
+\vspace{-1.5em}
+\end{table*}
+
+LeNet-5's severe overfitting (17.7\% train-val gap) is caused by optimizing 61K parameters on 8K training samples. In contrast, ResNet-18 and VGG-16 fine-tune only 1K--8K classifier parameters while leveraging frozen features pre-trained on ImageNet's 1.2M images. Modern architectures (residual connections, batch normalization) with rich feature representations enable superior generalization. The 7\% accuracy gap between VGG-16 (83.9\%) and LeNet-5 (77.0\%) shows architectural design and pre-training data diversity matter more than trainable parameter count for small-scale tasks.
+
+Mini-LeNet (4K params) achieves comparable accuracy to LeNet-5 with 4.1$\times$ better generalization (4.3\% vs. 17.7\% gap), confirming that excessive capacity amplifies overfitting with limited data. MobileNet-V3's underperformance (66.8\%) suggests its lightweight design sacrifices too much representational power, even with pre-training.
+
+\subsection{Analyze Calibration Performance}
+
+Our analysis reveals a strong link between model overfitting and miscalibration. LeNet-5, with its large training-validation gap, was severely overconfident (baseline ECE 0.1614). In contrast, the better-generalizing Mini-LeNet was inherently better calibrated (ECE of 0.0371). This confirms that excessive capacity relative to the dataset size breeds unreliable confidence scores.
+
+The confidence-accuracy gap provides further evidence: LeNet-5's average confidence (0.932) far exceeded its actual accuracy (0.771), creating a 0.161 gap. Mini-LeNet showed a much smaller gap (0.790 confidence vs. 0.775 accuracy). This simple metric correlates strongly with ECE and serves as an effective miscalibration indicator.
+
+Temperature scaling effectively corrects these calibration errors. As shown in Table~\ref{tab:calibrated}, scaling reduced LeNet-5's ECE by 84.9\% (from 0.1614 to 0.0243) without hurting accuracy. Mini-LeNet saw modest improvement (11.3\% reduction), while pre-trained models required minimal adjustment. The optimal temperature itself acts as a diagnostic: LeNet-5 required $T=3.71$ to temper its overconfidence, whereas Mini-LeNet needed only $T=1.23$, and VGG-16 remained at $T=1.00$.
+\begin{table}[h]
+\caption{Calibration Performance Before and After Temperature Scaling}
+\label{tab:calibrated}
+\centering
+\scriptsize
+\renewcommand{\arraystretch}{0.9}
+\begin{tabular}{lrrrr}
+\toprule
+Model & Base \gls{ece} & Final \gls{ece} & Reduction & Optimal T \\
+\midrule
+LeNet-5      & 0.1614 & 0.0243 & 84.9\% & 3.71 \\
+Mini-LeNet   & 0.0371 & 0.0329 & 11.3\% & 1.23 \\
+\midrule
+MobileNet-V3 & 0.0214 & 0.0308 & -43.5\%  & 1.10 \\
+ResNet-18    & 0.0250 & 0.0243 & 2.4\% & 1.10 \\
+VGG-16       & 0.0168 & 0.0168 & 0.0\%  & 1.00 \\
+\bottomrule
+\end{tabular}
+\vspace{-1em}
+\end{table}
+
+Figure~\ref{fig:ece_temp} visualizes how ECE varies with temperature for each model. The U-shaped curves show that each model has an optimal temperature that minimizes calibration error. LeNet-5's curve bottoms out at high temperature ($T=3.71$), confirming severe initial overconfidence. Mini-LeNet and the transfer models achieve optimal calibration near $T=1.0$--$1.2$, indicating they were already reasonably well-calibrated. This demonstrates that temperature scaling is a targeted repair: large corrections for overconfident models, modest refinements for mildly miscalibrated networks, and minimal change when models are already well-calibrated.
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=\columnwidth]{temp_scaling_ece.pdf}
+\caption{ECE versus temperature for each model; markers denote optimal temperatures.}
+\label{fig:ece_temp}
+\vspace{-1em}
+\end{figure}
+
+The transfer models demonstrate notably better initial calibration than the overfitted LeNet-5, with baseline ECEs between 0.0168 and 0.0250 compared to LeNet-5's 0.1614. This suggests transfer learning provides stronger out-of-the-box calibration relative to training from scratch. However, the scale analysis across MobileNet-V3-Small (1.5M), ResNet-18 (11.2M), and VGG-16 (134.3M) parameters reveals a nuanced picture: when using frozen pre-trained features with minimal fine-tuning, larger architectures can achieve better calibration than smaller overfitted models trained from scratch, an update to Guo et al.'s finding that larger networks tend to be more poorly calibrated.
+
+\begin{figure*}[ht]
+\includegraphics[width=\textwidth]{reliability_diagrams.pdf}
+\caption{Reliability diagrams before (top) and after (bottom) temperature scaling for each model.}
+\label{fig:reliability}
+\end{figure*}
+
+\subsection{Effectiveness of Temperature Scaling}
+
+The reliability diagrams in Figure~\ref{fig:reliability} provide visual confirmation of temperature scaling's effectiveness. Before calibration (top row), LeNet-5 exhibits severe overconfidence: predictions cluster in the highest confidence bin (0.9--1.0), yet actual accuracy in that bin falls below 80\%. This large gap between the bars and the diagonal represents poor calibration. After applying $T=3.71$ (bottom row), the bars align nearly perfectly with the diagonal, demonstrating that probability estimates now reliably reflect true accuracy.
+
+The visual transformation differs across models based on their initial calibration state. Mini-LeNet and ResNet-18, showing only slight overconfidence initially, require mild temperature adjustments ($T=1.23$ and $T=1.10$) that produce subtle shifts toward the diagonal. VGG-16's bars already align with perfect calibration at $T=1.00$, requiring no adjustment. Interestingly, MobileNet-V3's ECE slightly increases despite $T=1.10$, suggesting that its initial calibration, though imperfect, was closer to optimal than the temperature-scaled version for this specific validation set.
+
+\section{Conclusion}
+\label{sec:conclusion}
+
+This study demonstrates that neural network calibration is fundamentally linked to model capacity, training data availability, and learning strategy. Our experiments reveal that pre-trained features with minimal fine-tuning outperform randomly initialized networks despite using fewer trainable parameters, confirming that representation quality dominates parameter count when data are scarce. The connection between overfitting and miscalibration is particularly striking: LeNet-5's severe overconfidence (ECE 0.161) stems directly from excessive capacity relative to available training data, while the better-generalizing Mini-LeNet exhibits substantially better calibration (ECE 0.037).
+
+Temperature scaling provides an effective post-hoc correction for miscalibrated models. For severely overconfident networks like LeNet-5, it reduces ECE by 84.9\% while preserving accuracy. The optimal temperature itself serves as a diagnostic tool: high values indicate severe overconfidence, while temperatures near 1.0 suggest the model is already well-calibrated. Pre-trained models demonstrated notably better initial calibration than networks trained from scratch, though our scale analysis reveals that larger architectures with frozen features can achieve better calibration than smaller overfitted models.
+
+The practical implications are clear: for small-scale tasks, transfer learning with frozen features provides both superior accuracy and better calibration than training from scratch. When models exhibit overconfidence, temperature scaling offers a simple solution that maintains predictive performance while restoring reliability. However, temperature scaling improves reliability only under i.i.d. conditions and does not guard against dataset shift or adversarial inputs—limitations that must be addressed before deployment in safety-critical systems.
+
+
+% Bibliography using BibTeX
+\bibliographystyle{ieeetr}
+\small
+\bibliography{references}
+\normalsize
+
+% Implementation note
+\vspace{0.5em}
+\noindent\textbf{Note:} Complete implementation details, code, figures, and additional results are available in the accompanying Jupyter notebook \texttt{CNN\_Calibration\_Project.ipynb}.
+
+\end{document}
